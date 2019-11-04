@@ -81,7 +81,7 @@ count.rows <- function(x)   {
 
 
 
-slow_gibbs <- function(s, u, nReads, nits = 10000) {
+slow_gibbs <- function(s, u, nReads, nits = 10000, block_resample_its = NULL) {
     ## do a lot of iterations, so can compare
     results <- array(0, c(nits, nReads))
     z_proposed <- sample(c(0, 1), nReads, replace = TRUE)
@@ -97,6 +97,21 @@ slow_gibbs <- function(s, u, nReads, nits = 10000) {
             p2 <- p_z_given_o(z, s, u)        
             ##
             z_proposed[iRead] <- sample(c(0, 1), 1, prob = c(p1, p2) / (p1 + p2))
+        }
+        if (it %in% block_resample_its) {
+            for(uu in unique(u)) {
+                z <- z_proposed
+                w <- which(u == uu)
+                ## calculate two probabilities
+                p1 <- p_z_given_o(z, s, u)
+                z[w] <- 1 - z[w]
+                p2 <- p_z_given_o(z, s, u)        
+                ##
+                a <- sample(c("same", "switch"), 1, prob = c(p1, p2) / (p1 + p2))
+                if (a == "switch") {
+                    z_proposed[w] <- z[w]
+                }
+            }
         }
         lls[it] <- p_z_given_o(z_proposed, s, u)
         results[it, ] <- z_proposed
@@ -183,6 +198,7 @@ fast_gibbs <- function(s, u, nReads, nits = 10000) {
             }
             z_proposed[iRead] <- new_z
         }
+        ## 
         results[it, ] <- z_proposed
         lls[it] <- ll
         ##
@@ -201,7 +217,7 @@ fast_gibbs <- function(s, u, nReads, nits = 10000) {
 }
 
 
-plot_rect_z <- function(nits, nReads, results, main = "") {
+plot_rect_z <- function(nits, nReads, results, main = "", u = NULL) {
     ylim <- c(0, nits + 1)
     xlim <- c(0, nReads + 1)
     plot(x = 0, y = 0, xlim = xlim, ylim = ylim, xlab = "", ylab = "", axes = FALSE, col = "white", main = main)
@@ -212,4 +228,18 @@ plot_rect_z <- function(nits, nReads, results, main = "") {
         col <- cbPalette[results[, icol] + 2] 
         rect(xleft = icol - 0.5, icol + 0.5, ybottom = ybottom, ytop = ytop, col = col, border = NA)
     }
+    if (!is.null(u)) {
+        text(x = 0:nReads, y = -0.5, labels = c("u", u))
+    }
+}
+
+
+auto_corr_results <- function(results) {
+    w <- sort(sample(1:(nits - 100), 100))
+    m <- sapply(w, function(iSNP) {
+        sapply(0:20, function(j) {
+            cor(results[iSNP, ], results[iSNP + j, ]) ** 2
+        })
+    })
+    return(rowMeans(m))
 }

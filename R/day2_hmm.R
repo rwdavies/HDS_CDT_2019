@@ -416,7 +416,7 @@ par(mar = c(5, 4, 1, 1))
 plot(ll, xlab = "Iteration", ylab = "Log likelihood")
 dev.off()
 
-## build manually
+
 epi
 eA
 eB
